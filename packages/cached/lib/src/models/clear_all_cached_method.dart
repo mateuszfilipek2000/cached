@@ -1,32 +1,39 @@
-import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:cached/src/config.dart';
+import 'package:cached/src/models/clear_method_base.dart';
 import 'package:cached/src/models/param.dart';
-import 'package:cached_annotation/cached_annotation.dart';
+import 'package:cached/src/models/streamed_cache_method.dart';
 
-import 'package:source_gen/source_gen.dart';
-
-class ClearAllCachedMethod {
-  const ClearAllCachedMethod({
-    required this.name,
-    required this.returnType,
-    required this.isAsync,
+class ClearAllCachedMethod extends ClearMethodBase {
+  ClearAllCachedMethod({
     required this.params,
-    required this.isAbstract,
-    required this.ttlsToClear,
-  });
+    required String name,
+    required String returnType,
+    required bool isGenerator,
+    required bool isAsync,
+    required bool isAbstract,
+    required Iterable<String> methodsToClear,
+    required Iterable<String> ttlsToClear,
+    required Iterable<StreamedCacheMethod>? streamedCacheToClear,
+  }) : super(
+          name: name,
+          returnType: returnType,
+          isGenerator: isGenerator,
+          isAsync: isAsync,
+          isAbstract: isAbstract,
+          methodsToClear: methodsToClear,
+          ttlsToClear: ttlsToClear,
+          streamedCacheToClear: streamedCacheToClear,
+        );
 
-  final String name;
-  final String returnType;
-  final bool isAbstract;
-  final bool isAsync;
   final Iterable<Param> params;
-  final Set<String> ttlsToClear;
 
   factory ClearAllCachedMethod.fromElement(
-    MethodElement element,
+    ExecutableElement element,
     Config config,
-    Set<String> ttlsToClear,
+    Iterable<String> allCachedMethods,
+    Iterable<String> allTTLs,
+    Iterable<StreamedCacheMethod> allStreamedMethods,
   ) {
     return ClearAllCachedMethod(
       name: element.name,
@@ -34,12 +41,15 @@ class ClearAllCachedMethod {
       isAsync: element.isAsynchronous,
       isAbstract: element.isAbstract,
       params: element.parameters.map((e) => Param.fromElement(e, config)),
-      ttlsToClear: ttlsToClear,
+      ttlsToClear: allTTLs.where(
+        (methodWithTTL) => allCachedMethods.contains(methodWithTTL),
+      ),
+      isGenerator: element.isGenerator,
+      methodsToClear: allCachedMethods,
+      streamedCacheToClear: allStreamedMethods.where(
+        (streamedCacheMethod) =>
+            allCachedMethods.contains(streamedCacheMethod.targetMethodName),
+      ),
     );
-  }
-
-  static DartObject? getAnnotation(MethodElement element) {
-    const methodAnnotationChecker = TypeChecker.fromRuntime(ClearAllCached);
-    return methodAnnotationChecker.firstAnnotationOf(element);
   }
 }

@@ -1,105 +1,72 @@
-import 'package:cached/src/models/cached_getter.dart';
-import 'package:cached/src/models/cached_method.dart';
 import 'package:cached/src/models/clear_all_cached_method.dart';
-import 'package:cached/src/models/streamed_cache_method.dart';
 import 'package:cached/src/templates/all_params_template.dart';
+import 'package:cached/src/templates/method_template.dart';
+import 'package:cached/src/templates/mixins/clear_method_template_mixin.dart';
+import 'package:cached/src/templates/mixins/method_params_template.dart';
 import 'package:cached/src/utils/utils.dart';
 
-class ClearAllCachedMethodTemplate {
+class ClearAllCachedMethodTemplate extends MethodTemplate
+    with ClearMethodMixin, MethodParamsTemplate {
   ClearAllCachedMethodTemplate({
-    this.method,
-    required this.cachedMethods,
-    required this.cachedGetters,
-    required Iterable<StreamedCacheMethod> streamedCacheMethods,
-  })  : paramsTemplate = AllParamsTemplate(method?.params ?? {}),
-        streamedCacheMethodPerName = {
-          for (final m in streamedCacheMethods) m.targetMethodName: m
-        };
+    required this.method,
+  }) : paramsTemplate = AllParamsTemplate(method.params);
 
-  final ClearAllCachedMethod? method;
-  final Iterable<CachedMethod> cachedMethods;
-  final Iterable<CachedGetter> cachedGetters;
-  final Map<String, StreamedCacheMethod> streamedCacheMethodPerName;
+  @override
+  final ClearAllCachedMethod method;
+  @override
   final AllParamsTemplate paramsTemplate;
 
-  String get asyncModifier => isFuture(method!.returnType) ? 'async' : '';
-  String get awaitIfNeeded => isFuture(method!.returnType) ? 'await' : '';
+  @override
+  String get body {
+    if (method.isAbstract) return _generateAbstractMethod();
 
-  String _generateCacheClearMethods() => [
-        ...cachedMethods.map(_generateClearMapsFromMethod),
-        ...cachedGetters.map(_generateClearMapsFromGetter),
-      ].join("\n");
-
-  String generateMethod() {
-    if (method == null) return '';
-
-    if (method!.isAbstract) return _generateAbstractMethod();
-
-    if (isFutureBool(method!.returnType) || isBool(method!.returnType)) {
+    if (isFutureBool(method.returnType) || isBool(method.returnType)) {
       return _generateBoolMethod();
     }
 
     return '''
-    @override
-    ${method!.returnType} ${method!.name}(${paramsTemplate.generateParams()}) $asyncModifier {
-      $awaitIfNeeded super.${method!.name}(${paramsTemplate.generateParamsUsage()});
+    $awaitIfNeeded super.$invocation;
 
-      ${_generateCacheClearMethods()}
-    }
+    ${generateClearMaps()}
     ''';
   }
 
   String _generateBoolMethod() {
     return '''
-    @override
-    ${method!.returnType} ${method!.name}(${paramsTemplate.generateParams()}) $asyncModifier {
-      final ${syncReturnType(method!.returnType)} toReturn;
+    final ${syncReturnType(method.returnType)} toReturn;
 
-      final result = super.${method!.name}(${paramsTemplate.generateParamsUsage()});
-      toReturn = $awaitIfNeeded result;
+    final result = super.$invocation;
+    toReturn = $awaitIfNeeded result;
 
-      if(toReturn) {
-        ${_generateCacheClearMethods()}
-      }
-
-      return toReturn;
+    if(toReturn) {
+      ${generateClearMaps()}
     }
+
+    return toReturn;
     ''';
   }
 
   String _generateAbstractMethod() {
-    return '''
-    @override
-      ${method!.returnType} ${method!.name}() $asyncModifier {
-      ${_generateCacheClearMethods()}
-    }
-    ''';
+    return generateClearMaps();
   }
 
-  String _generateClearMapsFromMethod(CachedMethod clearedMethod) {
-    final baseName = clearedMethod.name;
-    return _generateClearMaps(
-      baseName,
-      streamedCacheMethodPerName[baseName],
-    );
-  }
+  // String _generateAbstractMethod() {
+  //   return '''
+  //   @override
+  //     ${method.returnType} ${method.name}() $asyncModifier {
+  //     ${_generateCacheClearMethods()}
+  //   }
+  //   ''';
+  // }
 
-  String _generateClearMapsFromGetter(CachedGetter clearedMethod) {
-    final baseName = clearedMethod.name;
-    return _generateClearMaps(
-      baseName,
-      streamedCacheMethodPerName[baseName],
-    );
-  }
-
-  String _generateClearMaps(
-    String baseName,
-    StreamedCacheMethod? streamedCacheMethod,
-  ) {
-    return '''
-${getCacheMapName(baseName)}.clear();
-${method?.ttlsToClear.contains(baseName) ?? false ? "${getTtlMapName(baseName)}.clear();" : ""}
-${clearStreamedCache(streamedCacheMethod)}
-''';
-  }
+//   String _generateClearMaps(
+//     String baseName,
+//     StreamedCacheMethod? streamedCacheMethod,
+//   ) {
+//     return '''
+// ${getCacheMapName(baseName)}.clear();
+// ${method.ttlsToClear.contains(baseName) ? "${getTtlMapName(baseName)}.clear();" : ""}
+// ${clearStreamedCache(streamedCacheMethod)}
+// ''';
+//   }
 }

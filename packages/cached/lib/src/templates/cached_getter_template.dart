@@ -1,32 +1,30 @@
-import 'package:cached/src/models/cached_getter.dart';
-import 'package:cached/src/templates/cached_function_template.dart';
+import 'package:cached/src/models/cached_method/cached_method.dart';
+import 'package:cached/src/templates/cached_method_base_template.dart';
+import 'package:cached/src/templates/mixins/getter_template.dart';
 
-class CachedGetterTemplate extends CachedFunctionTemplate {
-  CachedGetterTemplate(
-    CachedGetter getter, {
-    required bool useStaticCache,
-    required bool isCacheStreamed,
-  }) : super(
-          getter,
-          useStaticCache: useStaticCache,
-          isCacheStreamed: isCacheStreamed,
-        );
+class CachedGetterTemplate extends CachedMethodBaseTemplate
+    with GetterTemplate {
+  CachedGetterTemplate({
+    required this.isCacheStreamed,
+    required this.useStaticCache,
+    required this.method,
+  });
 
   @override
-  String get paramsKey => "";
+  final bool isCacheStreamed;
 
   @override
-  String generateDefinition() {
-    return "get ${function.name}";
-  }
+  final bool useStaticCache;
 
   @override
-  String generateUsage() {
-    return function.name;
-  }
+  final CachedMethod method;
 
   @override
-  String generateOnCatch() {
-    return 'rethrow;';
-  }
+  String get paramsKey => '';
+
+  @override
+  String get generateAdditionalCacheCondition => "";
+
+  @override
+  String get generateOnCatch => "rethrow;";
 }

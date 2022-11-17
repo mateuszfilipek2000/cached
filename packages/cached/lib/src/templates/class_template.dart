@@ -1,25 +1,35 @@
+import 'package:cached/src/models/cached_method/cached_method.dart';
 import 'package:cached/src/models/class_with_cache.dart';
 import 'package:cached/src/templates/all_params_template.dart';
 import 'package:cached/src/templates/cache_peek_method_template.dart';
 import 'package:cached/src/templates/cached_getter_template.dart';
+import 'package:cached/src/templates/cached_map_template.dart';
 import 'package:cached/src/templates/cached_method_template.dart';
+import 'package:cached/src/templates/cached_method_ttl_template.dart';
+import 'package:cached/src/templates/cached_sync_map_template.dart';
 import 'package:cached/src/templates/clear_all_cached_method_template.dart';
 import 'package:cached/src/templates/clear_cached_method_template.dart';
 import 'package:cached/src/templates/deletes_cache_method_template.dart';
+import 'package:cached/src/templates/method_template.dart';
+import 'package:cached/src/templates/modifies_cache_template.dart';
 import 'package:cached/src/templates/streamed_method_template.dart';
-import 'package:collection/collection.dart';
+import 'package:cached/src/templates/template.dart';
 
-class ClassTemplate {
-  ClassTemplate(this.classWithCache);
+class ClassTemplate implements Template {
+  ClassTemplate({
+    required this.name,
+    required this.paramsTemplate,
+    required this.methodTemplates,
+  });
 
-  final ClassWithCache classWithCache;
-
-  String generate() {
+  factory ClassTemplate.fromClassWithCache(
+    ClassWithCache classWithCache,
+  ) {
     final classMethods = classWithCache.methods;
 
     final methodTemplates = classMethods.map(
       (e) => CachedMethodTemplate(
-        e,
+        method: e,
         useStaticCache: classWithCache.useStaticCache,
         isCacheStreamed: classWithCache.streamedCacheMethods
             .any((s) => s.targetMethodName == e.name),
@@ -28,7 +38,7 @@ class ClassTemplate {
 
     final getterTemplates = classWithCache.getters.map(
       (e) => CachedGetterTemplate(
-        e,
+        method: e,
         useStaticCache: classWithCache.useStaticCache,
         isCacheStreamed: classWithCache.streamedCacheMethods
             .any((s) => s.targetMethodName == e.name),
@@ -46,20 +56,15 @@ class ClassTemplate {
 
     final clearMethodTemplates = classWithCache.clearMethods.map(
       (e) => ClearCachedMethodTemplate(
-        e,
-        streamedCacheMethod:
-            classWithCache.streamedCacheMethods.firstWhereOrNull(
-          (m) => m.targetMethodName == e.name,
-        ),
+        method: e,
       ),
     );
 
-    final clearAllMethodTemplate = ClearAllCachedMethodTemplate(
-      method: classWithCache.clearAllMethod,
-      cachedMethods: classMethods,
-      cachedGetters: classWithCache.getters,
-      streamedCacheMethods: classWithCache.streamedCacheMethods,
-    );
+    final clearAllMethodTemplate = classWithCache.clearAllMethod != null
+        ? ClearAllCachedMethodTemplate(
+            method: classWithCache.clearAllMethod!,
+          )
+        : null;
 
     final cachePeekMethodTemplates = classWithCache.cachePeekMethods.map(
       (e) => CachePeekMethodTemplate(
@@ -68,51 +73,93 @@ class ClassTemplate {
       ),
     );
 
-    final constructorParamTemplates =
-        AllParamsTemplate(classWithCache.constructor.params);
-
     final deletesCacheMethodTemplates = classWithCache.deletesCacheMethods.map(
       (method) => DeletesCacheMethodTemplate(
         method,
-        classWithCache.streamedCacheMethods
-            .where(
-              (streamedMethod) =>
-                  method.methodNames.contains(streamedMethod.targetMethodName),
-            )
-            .toList(),
       ),
     );
 
-    return '''
-class _${classWithCache.name} with ${classWithCache.name} implements _\$${classWithCache.name} {
-  _${classWithCache.name}(${constructorParamTemplates.generateThisParams()});
+    final modifiesCacheTemplates = classWithCache.modifiesCacheMethods.map(
+      (e) => ModifiesCacheTemplate(e),
+    );
 
-  ${constructorParamTemplates.generateFields(addOverrideAnnotation: true)}
+    return ClassTemplate(
+      name: classWithCache.name,
+      paramsTemplate: AllParamsTemplate(classWithCache.constructor.params),
+      methodTemplates: [
+        ...methodTemplates,
+        ...getterTemplates,
+        ...streamedCacheMethodTemplates,
+        ...clearMethodTemplates,
+        if (clearAllMethodTemplate != null) clearAllMethodTemplate,
+        ...cachePeekMethodTemplates,
+        ...deletesCacheMethodTemplates,
+        ...modifiesCacheTemplates,
+      ],
+    );
+  }
 
-  ${methodTemplates.map((e) => e.generateSyncMap()).join('\n')}
-  ${getterTemplates.map((e) => e.generateSyncMap()).join('\n')}
+  final String name;
 
-  ${methodTemplates.map((e) => e.generateCacheMap()).join('\n')}
-  ${getterTemplates.map((e) => e.generateCacheMap()).join('\n')}
+  final AllParamsTemplate paramsTemplate;
 
-  ${methodTemplates.map((e) => e.generateTtlMap()).join('\n')}
-  ${getterTemplates.map((e) => e.generateTtlMap()).join('\n')}
+  final Iterable<MethodTemplate> methodTemplates;
 
-  ${streamedCacheMethodTemplates.map((e) => e.generateStreamMap()).join('\n')}
+  Iterable<CachedMethod> get cachedMethods =>
+      methodTemplates.whereType<CachedMethod>();
 
-  ${methodTemplates.map((e) => e.generate()).join('\n\n')}
-  ${getterTemplates.map((e) => e.generate()).join('\n\n')}
+  @override
+  String generate() {
+    final buffer = StringBuffer();
 
-  ${streamedCacheMethodTemplates.map((e) => e.generateMethod()).join('\n\n')}
+    buffer.writeln("class _$name with $name implements _\$$name {");
 
-  ${clearMethodTemplates.map((e) => e.generateMethod()).join('\n\n')}
+    buffer.writeln("_$name(${paramsTemplate.generateThisParams()});\n");
 
-  ${cachePeekMethodTemplates.map((e) => e.generateMethod()).join('\n\n')}
+    buffer.writeln(
+      paramsTemplate.generateFields(addOverrideAnnotation: true),
+    );
 
-  ${clearAllMethodTemplate.generateMethod()}
+    methodTemplates
+        .whereType<CachedSyncMapTemplate>()
+        .map(
+          (e) => e.generateSyncMap(),
+        )
+        .forEach(buffer.writeln);
 
-  ${deletesCacheMethodTemplates.map((e) => e.generateMethod()).join('\n\n')}
-}
-''';
+    buffer.writeln();
+
+    methodTemplates
+        .whereType<CachedMapTemplate>()
+        .map(
+          (e) => e.generateCacheMap(),
+        )
+        .forEach(buffer.writeln);
+
+    buffer.writeln();
+
+    methodTemplates
+        .whereType<CachedMethodTTLTemplate>()
+        .map(
+          (e) => e.generateTtlMap(),
+        )
+        .forEach(buffer.writeln);
+
+    buffer.writeln();
+
+    methodTemplates
+        .whereType<StreamedCacheMethodTemplate>()
+        .map(
+          (e) => e.generateStreamMap(),
+        )
+        .forEach(buffer.writeln);
+
+    buffer.writeln();
+
+    methodTemplates.map((e) => e.generate()).forEach(buffer.writeln);
+
+    buffer.writeln("}");
+
+    return buffer.toString();
   }
 }

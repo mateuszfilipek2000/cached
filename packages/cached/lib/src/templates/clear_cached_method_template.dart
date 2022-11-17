@@ -1,20 +1,23 @@
 import 'package:cached/src/models/clear_cached_method.dart';
-import 'package:cached/src/models/streamed_cache_method.dart';
 import 'package:cached/src/templates/all_params_template.dart';
+import 'package:cached/src/templates/method_template.dart';
+import 'package:cached/src/templates/mixins/clear_method_template_mixin.dart';
+import 'package:cached/src/templates/mixins/method_params_template.dart';
 import 'package:cached/src/utils/utils.dart';
 
-class ClearCachedMethodTemplate {
-  ClearCachedMethodTemplate(this.method, {this.streamedCacheMethod})
-      : paramsTemplate = AllParamsTemplate(method.params);
+class ClearCachedMethodTemplate extends MethodTemplate
+    with ClearMethodMixin, MethodParamsTemplate {
+  ClearCachedMethodTemplate({
+    required this.method,
+  }) : paramsTemplate = AllParamsTemplate(method.params);
 
+  @override
   final ClearCachedMethod method;
+  @override
   final AllParamsTemplate paramsTemplate;
-  final StreamedCacheMethod? streamedCacheMethod;
 
-  String get asyncModifier => isFuture(method.returnType) ? 'async' : '';
-  String get awaitIfNeeded => isFuture(method.returnType) ? 'await' : '';
-
-  String generateMethod() {
+  @override
+  String get body {
     if (method.isAbstract) return _generateAbstractMethod();
 
     if (isFutureBool(method.returnType) || isBool(method.returnType)) {
@@ -22,47 +25,28 @@ class ClearCachedMethodTemplate {
     }
 
     return '''
-    @override
-    ${method.returnType} ${method.name}(${paramsTemplate.generateParams()}) $asyncModifier {
-      $awaitIfNeeded super.${method.name}(${paramsTemplate.generateParamsUsage()});
+    $awaitIfNeeded super.$invocation;
 
-      ${_generateClearMaps()}
-    }
+    ${generateClearMaps()}
     ''';
   }
 
   String _generateBoolMethod() {
     return '''
-    @override
-    ${method.returnType} ${method.name}(${paramsTemplate.generateParams()}) $asyncModifier {
-      final ${syncReturnType(method.returnType)} toReturn;
+    final ${syncReturnType(method.returnType)} toReturn;
 
-      final result = super.${method.name}(${paramsTemplate.generateParamsUsage()});
-      toReturn = $awaitIfNeeded result;
+    final result = super.$invocation;
+    toReturn = $awaitIfNeeded result;
 
-      if(toReturn) {
-        ${_generateClearMaps()}
-      }
-
-      return toReturn;
+    if(toReturn) {
+      ${generateClearMaps()}
     }
+
+    return toReturn;
     ''';
   }
 
   String _generateAbstractMethod() {
-    return '''
-    @override
-      ${method.returnType} ${method.name}() $asyncModifier {
-      ${_generateClearMaps()}
-    }
-    ''';
-  }
-
-  String _generateClearMaps() {
-    return '''
-${getCacheMapName(method.methodName)}.clear();
-${method.shouldClearTtl ? "${getTtlMapName(method.methodName)}.clear();" : ""}
-${clearStreamedCache(streamedCacheMethod)}
-''';
+    return generateClearMaps();
   }
 }

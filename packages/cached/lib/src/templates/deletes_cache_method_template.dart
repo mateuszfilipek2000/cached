@@ -1,47 +1,26 @@
 import 'package:cached/src/models/deletes_cache_method.dart';
-import 'package:cached/src/models/streamed_cache_method.dart';
 import 'package:cached/src/templates/all_params_template.dart';
-import 'package:cached/src/utils/utils.dart';
+import 'package:cached/src/templates/method_with_params_template.dart';
+import 'package:cached/src/templates/mixins/clear_method_template_mixin.dart';
 
-class DeletesCacheMethodTemplate {
+class DeletesCacheMethodTemplate extends MethodWithParamsTemplate
+    with ClearMethodMixin {
   DeletesCacheMethodTemplate(
     this.method,
-    this.streamedCacheMethods,
-  ) : paramsTemplate = AllParamsTemplate(method.params);
+  ) : params = AllParamsTemplate(method.params);
 
+  @override
   final DeletesCacheMethod method;
-  final AllParamsTemplate paramsTemplate;
-  final List<StreamedCacheMethod>? streamedCacheMethods;
 
-  String generateMethod() {
-    final asyncModifier = isFuture(method.returnType) ? 'async' : '';
-    final awaitIfNeeded = isFuture(method.returnType) ? 'await' : '';
+  @override
+  final AllParamsTemplate params;
 
-    return '''
-    @override
-    ${method.returnType} ${method.name}(${paramsTemplate.generateParams()}) $asyncModifier {
-      final result = $awaitIfNeeded super.${method.name}(${paramsTemplate.generateParamsUsage()});
+  @override
+  String get body => '''
+  final result = $awaitIfNeeded super.$invocation;
 
-      ${_generateClearMaps()}
+  ${generateClearMaps()}
 
-      return result;
-    }
-    ''';
-  }
-
-  String _generateClearMaps() {
-    return [
-      ...method.methodNames.map(
-        (methodToClear) => "${getCacheMapName(methodToClear)}.clear();",
-      ),
-      ...method.ttlsToClear.map(
-        (ttlToClearMethodName) =>
-            "${getTtlMapName(ttlToClearMethodName)}.clear();",
-      ),
-      ...streamedCacheMethods?.map(
-            (streamedMethod) => clearStreamedCache(streamedMethod),
-          ) ??
-          <String>[]
-    ].join("\n");
-  }
+  return result;
+''';
 }

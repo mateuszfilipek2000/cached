@@ -1,24 +1,30 @@
-import 'package:cached/src/models/cached_method.dart';
+import 'package:cached/src/models/cached_method/cached_method_with_params.dart';
 import 'package:cached/src/models/param.dart';
 import 'package:cached/src/templates/all_params_template.dart';
-import 'package:cached/src/templates/cached_function_template.dart';
+import 'package:cached/src/templates/cached_method_base_template.dart';
+import 'package:cached/src/templates/mixins/method_params_template.dart';
 import 'package:cached/src/utils/utils.dart';
 import 'package:collection/collection.dart';
 
-class CachedMethodTemplate extends CachedFunctionTemplate {
-  CachedMethodTemplate(
-    this.method, {
-    required bool useStaticCache,
-    required bool isCacheStreamed,
-  })  : paramsTemplate = AllParamsTemplate(method.params),
-        super(
-          method,
-          useStaticCache: useStaticCache,
-          isCacheStreamed: isCacheStreamed,
-        );
+class CachedMethodTemplate extends CachedMethodBaseTemplate
+    with MethodParamsTemplate {
+  CachedMethodTemplate({
+    required this.isCacheStreamed,
+    required this.useStaticCache,
+    required this.method,
+  }) : paramsTemplate = AllParamsTemplate(method.params);
 
+  @override
+  final bool isCacheStreamed;
+
+  @override
+  final bool useStaticCache;
+
+  @override
+  final CachedMethodWithParams method;
+
+  @override
   final AllParamsTemplate paramsTemplate;
-  final CachedMethod method;
 
   Param? get ignoreCacheParam => method.params
       .firstWhereOrNull((element) => element.ignoreCacheAnnotation != null);
@@ -27,27 +33,11 @@ class CachedMethodTemplate extends CachedFunctionTemplate {
   String get paramsKey => getParamKey(method.params);
 
   @override
-  String generateDefinition() {
-    return "${function.name}(${paramsTemplate.generateParams()})";
-  }
+  String get generateAdditionalCacheCondition =>
+      ignoreCacheParam != null ? '|| ${ignoreCacheParam!.name}' : '';
 
   @override
-  String generateUsage() {
-    return "${function.name}(${paramsTemplate.generateParamsUsage()})";
-  }
-
-  @override
-  String generateAdditionalCacheCondition() {
-    final ignoreCacheParam = this.ignoreCacheParam;
-
-    final ignoreCacheCondition =
-        ignoreCacheParam != null ? '|| ${ignoreCacheParam.name}' : '';
-
-    return ignoreCacheCondition;
-  }
-
-  @override
-  String generateOnCatch() {
+  String get generateOnCatch {
     final useCacheOnError =
         ignoreCacheParam?.ignoreCacheAnnotation?.useCacheOnError ?? false;
     return '${useCacheOnError ? "if (cachedValue != null) { return cachedValue;\n }" : ""}rethrow;';

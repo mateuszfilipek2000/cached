@@ -1,27 +1,29 @@
 import 'package:cached/src/models/streamed_cache_method.dart';
 import 'package:cached/src/templates/all_params_template.dart';
+import 'package:cached/src/templates/method_with_params_template.dart';
 import 'package:cached/src/utils/utils.dart';
 
-class StreamedCacheMethodTemplate {
+class StreamedCacheMethodTemplate extends MethodWithParamsTemplate {
   StreamedCacheMethodTemplate(
     this.method, {
     required this.useStaticCache,
     required this.className,
-  }) : paramsTemplate = AllParamsTemplate(method.params);
+  }) : params = AllParamsTemplate(method.params);
 
+  @override
   final StreamedCacheMethod method;
+
   final bool useStaticCache;
   final String className;
-  final AllParamsTemplate paramsTemplate;
+  @override
+  final AllParamsTemplate params;
 
   String generateStreamMap() {
     return 'static final ${getCacheStreamControllerName(method.targetMethodName)} = ${_streamMapInitializer()};';
   }
 
-  String generateMethod() {
-    return '''
-@override
-Stream<${method.coreReturnType}> ${method.name}(${paramsTemplate.generateParams()}) async* {
+  @override
+  String get body => '''
   final paramsKey = "${getParamKey(method.params)}";
   final streamController = ${getCacheStreamControllerName(method.targetMethodName)};
   final stream = streamController.stream
@@ -31,9 +33,7 @@ Stream<${method.coreReturnType}> ${method.name}(${paramsTemplate.generateParams(
   ${_lastValueEmit()}
   
   yield* stream;
-}
-    ''';
-  }
+''';
 
   String _lastValueEmit() {
     if (!method.emitLastValue) {

@@ -2,23 +2,33 @@ import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:cached/src/config.dart';
+import 'package:cached/src/models/method_base.dart';
 import 'package:cached/src/models/param.dart';
 import 'package:cached_annotation/cached_annotation.dart';
 import 'package:collection/collection.dart';
 import 'package:source_gen/source_gen.dart';
 import 'package:source_helper/source_helper.dart';
 
-class StreamedCacheMethod {
-  const StreamedCacheMethod({
-    required this.name,
+class StreamedCacheMethod extends MethodBase {
+  StreamedCacheMethod({
     required this.targetMethodName,
     required this.coreReturnType,
     required this.params,
     required this.emitLastValue,
     required this.coreReturnTypeNullable,
-  });
+    required String name,
+    required String returnType,
+    required bool isGenerator,
+    required bool isAsync,
+    required bool isAbstract,
+  }) : super(
+          name: name,
+          returnType: returnType,
+          isGenerator: isGenerator,
+          isAsync: isAsync,
+          isAbstract: isAbstract,
+        );
 
-  final String name;
   final String targetMethodName;
   final Iterable<Param> params;
   final String coreReturnType;
@@ -26,8 +36,8 @@ class StreamedCacheMethod {
   final bool coreReturnTypeNullable;
 
   factory StreamedCacheMethod.fromElement(
-    MethodElement element,
-    List<ExecutableElement> classMethods,
+    ExecutableElement element,
+    Iterable<ExecutableElement> classMethods,
     Config config,
   ) {
     final annotation = getAnnotation(element);
@@ -108,6 +118,10 @@ class StreamedCacheMethod {
       targetMethodName: methodName,
       coreReturnTypeNullable: coreCacheStreamMethodType?.nullabilitySuffix ==
           NullabilitySuffix.question,
+      isAbstract: element.isAbstract,
+      isAsync: true,
+      isGenerator: true,
+      returnType: element.returnType.getDisplayString(withNullability: true),
     );
   }
 
